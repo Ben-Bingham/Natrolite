@@ -145,8 +145,8 @@ int main() {
                 mainShader->SetVec4("color", glm::vec4{ 0.0f, 1.0f, 0.0f, 1.0f });
             }
 
-            std::chrono::milliseconds timeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(lastCompile);
-            ImGui::Text("Last Compilation Took: %.3fms", (float)timeInMs.count());
+            std::chrono::microseconds timeInMs = std::chrono::duration_cast<std::chrono::microseconds>(lastCompile);
+            ImGui::Text("Last Compilation Took: %df (microseconds)", (float)timeInMs.count());
         } ImGui::End();
 
         if (glfwGetKey(window->handle, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
