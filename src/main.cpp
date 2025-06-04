@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <chrono>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -16,14 +17,17 @@
 #include "Utilities/OpenGl/Framebuffer.h"
 #include "Utilities/OpenGl/Renderbuffer.h"
 #include "Utilities/Camera.h"
+#include "Utilities/ReadFile.h"
 
 Camera cam{ };
 
 std::shared_ptr<Window> window{ };
 
-glm::ivec2 imGuiWindowSize{ };
-glm::ivec2 lastImGuiWindowSize{ };
+glm::ivec2 imGuiWindowSize{ 100, 100 };
+glm::ivec2 lastImGuiWindowSize{ imGuiWindowSize };
 glm::ivec2 viewPortOffset{ };
+
+std::chrono::duration<float> lastCompile{ 0.0f };
 
 int main() {
     window = std::make_shared<Window>(glm::ivec2{ 1600, 1000 }, "Natrolite");
@@ -33,13 +37,18 @@ int main() {
     ImGuiInstance imGui{ };
     imGui.Init(window->handle);
 
-    Shader mainShader{ "assets\\shaders\\main.vert", "assets\\shaders\\main.frag" };
-    mainShader.Bind();
-    mainShader.SetVec4("color", glm::vec4{ 0.0f, 1.0f, 0.0f, 1.0f });
+    std::unique_ptr<Shader> mainShader{ };
+    auto start = std::chrono::steady_clock::now();
+    mainShader = std::make_unique<Shader>("assets\\shaders\\main.vert", "assets\\shaders\\main.frag");
+    lastCompile = std::chrono::steady_clock::now() - start;
+
+    mainShader->Bind();
+    mainShader->SetVec4("color", glm::vec4{ 0.0f, 1.0f, 0.0f, 1.0f });
 
     Framebuffer framebuffer{ };
+    framebuffer.Bind();
 
-    Texture2D texture{ window->size, TextureParameters{
+    Texture2D texture{ imGuiWindowSize, TextureParameters{
         TextureFormat::RGB,
         TextureStorageType::UNSIGNED_BYTE,
         TextureWrapMode::REPEAT,
@@ -48,7 +57,7 @@ int main() {
 
     framebuffer.AddTexture(texture, Framebuffer::TextureUses::COLOR_0);
 
-    Renderbuffer renderbuffer{ window->size };
+    Renderbuffer renderbuffer{ imGuiWindowSize };
 
     framebuffer.AddRenderbuffer(renderbuffer, Framebuffer::RenderbufferUses::DEPTH_STENCIL);
 
@@ -93,7 +102,7 @@ int main() {
         { ImGui::Begin("Preview");
             imGuiWindowSize = glm::ivec2{ ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y };
 
-            if (imGuiWindowSize != lastImGuiWindowSize) {
+            if (imGuiWindowSize != lastImGuiWindowSize && !(imGuiWindowSize.x == 0 || imGuiWindowSize.y == 0)) {
                 framebuffer.Bind();
 
                 texture.Bind();
@@ -102,15 +111,17 @@ int main() {
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.Get(), 0);
 
-                glViewport(0, 0, imGuiWindowSize.x, imGuiWindowSize.y);
-
                 renderbuffer.Bind();
                 glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, imGuiWindowSize.x, imGuiWindowSize.y);
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, renderbuffer.Get());
 
+                framebuffer.Check();
+
                 framebuffer.Unbind();
                 texture.Unbind();
                 renderbuffer.Unbind();
+
+                lastImGuiWindowSize = imGuiWindowSize;
             }
 
             viewPortOffset = glm::ivec2{ (int)ImGui::GetCursorPos().x, (int)ImGui::GetCursorPos().y };
@@ -123,13 +134,26 @@ int main() {
         } ImGui::End();
 
         { ImGui::Begin("Settings");
-            ImGui::Text("This is the settings menu");
+            if (ImGui::Button("Recompile")) {
+                mainShader.reset();
+
+                auto start = std::chrono::steady_clock::now();
+                mainShader = std::make_unique<Shader>("assets\\shaders\\main.vert", "assets\\shaders\\main.frag");
+                lastCompile = std::chrono::steady_clock::now() - start;
+
+                mainShader->Bind();
+                mainShader->SetVec4("color", glm::vec4{ 0.0f, 1.0f, 0.0f, 1.0f });
+            }
+
+            std::chrono::milliseconds timeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(lastCompile);
+            ImGui::Text("Last Compilation Took: %.3fms", (float)timeInMs.count());
         } ImGui::End();
 
         if (glfwGetKey(window->handle, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             glfwSetWindowShouldClose(window->handle, true);
         }
 
+        glViewport(0, 0, imGuiWindowSize.x, imGuiWindowSize.y);
         framebuffer.Bind();
 
         // Prep for rendering
@@ -142,8 +166,8 @@ int main() {
 
         glm::mat4 mvp = projection * view * model;
 
-        mainShader.Bind();
-        mainShader.SetMat4("mvp", mvp);
+        mainShader->Bind();
+        mainShader->SetMat4("mvp", mvp);
 
         glDrawElements(GL_TRIANGLES, (unsigned int)indices.size(), GL_UNSIGNED_INT, nullptr);
 
