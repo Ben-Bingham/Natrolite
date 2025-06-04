@@ -118,6 +118,14 @@ int main() {
 
         } ImGui::End();
 
+        { ImGui::Begin("Editor");
+            ImGui::Text("This is the editor");
+        } ImGui::End();
+
+        { ImGui::Begin("Settings");
+            ImGui::Text("This is the settings menu");
+        } ImGui::End();
+
         if (glfwGetKey(window->handle, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             glfwSetWindowShouldClose(window->handle, true);
         }
