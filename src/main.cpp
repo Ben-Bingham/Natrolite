@@ -19,6 +19,8 @@
 #include "Utilities/Camera.h"
 #include "Utilities/ReadFile.h"
 
+#include "Editor.h"
+
 Camera cam{ };
 
 std::shared_ptr<Window> window{ };
@@ -130,8 +132,10 @@ int main() {
         } ImGui::End();
 
         { ImGui::Begin("Editor");
-            ImGui::Text("This is the editor");
+            Natrolite::Editor();
         } ImGui::End();
+
+        ImGui::ShowDemoWindow();
 
         { ImGui::Begin("Settings");
             if (ImGui::Button("Recompile")) {
@@ -146,7 +150,7 @@ int main() {
             }
 
             std::chrono::microseconds timeInMs = std::chrono::duration_cast<std::chrono::microseconds>(lastCompile);
-            ImGui::Text("Last Compilation Took: %df (microseconds)", (float)timeInMs.count());
+            ImGui::Text("Last Compilation Took: %d microseconds", timeInMs.count());
         } ImGui::End();
 
         if (glfwGetKey(window->handle, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
